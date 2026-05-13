@@ -5,8 +5,30 @@
 
     <display-name>Login Demo</display-name>
 
+    <filter>
+        <filter-name>rootRedirectFilter</filter-name>
+        <filter-class>RootRedirectFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>rootRedirectFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+        <dispatcher>REQUEST</dispatcher>
+    </filter-mapping>
+
     <welcome-file-list>
+        <!-- Static file so "/" succeeds (servlet-only welcome files are unreliable on some containers). -->
+        <welcome-file>index.html</welcome-file>
         <welcome-file>login.do</welcome-file>
     </welcome-file-list>
+
+    <!-- Dev: HTTP (8080) and HTTPS (8443) are different origins; do not force Secure-only session
+         cookies so cleartext logins still get a persisted JSESSIONID. Tighten for production. -->
+    <session-config>
+        <session-timeout>30</session-timeout>
+        <cookie-config>
+            <http-only>true</http-only>
+            <secure>false</secure>
+        </cookie-config>
+    </session-config>
 
 </web-app>

@@ -1,3 +1,5 @@
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -5,10 +7,50 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class LoginDao {
 
+	private static final Logger LOG = Logger.getLogger(LoginDao.class.getName());
+
 	private static Connection connection = null;
+
+	private static final Properties DB = loadDatabaseProperties();
+
+	private static Properties loadDatabaseProperties() {
+		Properties p = new Properties();
+		try (InputStream in = LoginDao.class.getClassLoader().getResourceAsStream("database.properties")) {
+			if (in == null) {
+				throw new IllegalStateException("classpath resource database.properties is missing");
+			}
+			p.load(in);
+		} catch (IOException e) {
+			throw new IllegalStateException("Could not load database.properties", e);
+		}
+		return p;
+	}
+
+	private static String jdbcDriver() {
+		return DB.getProperty("jdbc.driver");
+	}
+
+	private static String jdbcUrl() {
+		String fromEnv = System.getenv("JDBC_URL");
+		if (fromEnv != null && !fromEnv.trim().isEmpty()) {
+			return fromEnv.trim();
+		}
+		return DB.getProperty("jdbc.url");
+	}
+
+	private static String jdbcUsername() {
+		return DB.getProperty("jdbc.username");
+	}
+
+	private static String jdbcPassword() {
+		return DB.getProperty("jdbc.password");
+	}
 
 	public static boolean validate(String name, String pass) {
         boolean status = false;
@@ -16,15 +58,10 @@ public class LoginDao {
         PreparedStatement pst = null;
         ResultSet rs = null;
 
-        String url = "jdbc:mysql://localhost/";
-        String dbName = "COMPOSITEAPPS";
-        String driver = "com.mysql.jdbc.Driver";
-        String userName = "mysqluser";
-        String password = "mysqlpassword";
-
         try {
-            Class.forName(driver).newInstance();
-            conn = DriverManager.getConnection(url + dbName, userName, password);
+            Class.forName(jdbcDriver());
+            String url = jdbcUrl();
+            conn = DriverManager.getConnection(url, jdbcUsername(), jdbcPassword());
 
             pst = conn.prepareStatement("SELECT * FROM EMPLOYEES WHERE USERNAME=? and PASSWORD=?");
             pst.setString(1, name);
@@ -32,10 +69,13 @@ public class LoginDao {
 
             rs = pst.executeQuery();
             status = rs.next();
+            if (!status && name != null && !name.isEmpty()) {
+				LOG.warning("LoginDao: no EMPLOYEES row matching username (wrong user/password or empty DB). jdbcUrl=" + url);
+            }
         }
 
         catch (Exception e) {
-            System.out.println(e);
+        	LOG.log(Level.SEVERE, "LoginDao: database error during validate (check JDBC_URL / MySQL grants / network). jdbcUrl=" + jdbcUrl(), e);
         }
 
         finally {
@@ -73,15 +113,8 @@ public class LoginDao {
             return connection;
         else {
             try {
-
-            	String url = "jdbc:mysql://localhost/";
-                String dbName = "COMPOSITEAPPS";
-                String driver = "com.mysql.jdbc.Driver";
-                String userName = "mysqluser";
-                String password = "mysqlpassword";
-
-                Class.forName(driver);
-                connection = DriverManager.getConnection(url + dbName, userName, password);
+                Class.forName(jdbcDriver());
+                connection = DriverManager.getConnection(jdbcUrl(), jdbcUsername(), jdbcPassword());
 
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();

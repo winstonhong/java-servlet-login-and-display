@@ -5,12 +5,24 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
   <artifactId>idqlogindemo</artifactId>
   <version>1.0.0</version>
   <packaging>war</packaging>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- Java 8 bytecode for Tomcat 8.x / Jetty 9; source/target avoids JDK 25 EA rejecting older release flags -->
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+    <!-- Override: mvn -Dhttp.port=9090 -Dhttps.port=9443 jetty:run -->
+    <http.port>8080</http.port>
+    <https.port>8443</https.port>
+    <keystore.password>health</keystore.password>
+    <jetty.version>9.4.54.v20240208</jetty.version>
+  </properties>
   
   <dependencies>
         <dependency>
             <groupId>javax</groupId>
             <artifactId>javaee-web-api</artifactId>
-            <version>6.0</version>
+            <version>7.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -28,13 +40,13 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
             <artifactId>jquery</artifactId>
             <version>1.9.1</version>
         </dependency>
+        <!-- mysql:latest (MySQL 8+) default auth needs 8.x driver; 5.1.x often fails with "Could not create connection" -->
         <dependency>
-		    <groupId>mysql</groupId>
-		    <artifactId>mysql-connector-java</artifactId>
-		    <version>5.1.38</version>
-		    <type>jar</type>
-		    <scope>compile</scope>
-		</dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.0.33</version>
+            <scope>compile</scope>
+        </dependency>
 		<dependency>
 			<groupId>com.google.code.gson</groupId>
 			<artifactId>gson</artifactId>
@@ -64,28 +76,118 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xs
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.2</version>
+                    <version>3.13.0</version>
                     <configuration>
-                        <verbose>true</verbose>
-                        <source>1.7</source>
-                        <target>1.7</target>
-                        <showWarnings>true</showWarnings>
+                        <source>${maven.compiler.source}</source>
+                        <target>${maven.compiler.target}</target>
                     </configuration>
                 </plugin>
                 <plugin>
-                    <groupId>org.apache.tomcat.maven</groupId>
-                    <artifactId>tomcat7-maven-plugin</artifactId>
-                    <version>2.2</version>
-                    <configuration>
-                        <path>/</path>
-                        <contextReloadable>true</contextReloadable>
-                        <port>8080</port>
-                        <httpsPort>8443</httpsPort>
-                        <keystoreFile>certificates/keystore.jks</keystoreFile>
-                        <keystorePass>health</keystorePass>
-                    </configuration>
+                    <groupId>org.eclipse.jetty</groupId>
+                    <artifactId>jetty-maven-plugin</artifactId>
+                    <version>${jetty.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.cargo</groupId>
+                    <artifactId>cargo-maven3-plugin</artifactId>
+                    <version>1.10.27</version>
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <!-- Jetty: HTTP + HTTPS (see jetty/dev-server.xml). OAuth-friendly default HTTPS on 8443. -->
+            <plugin>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-maven-plugin</artifactId>
+                <configuration>
+                    <jettyXml>${project.basedir}/jetty/dev-server.xml</jettyXml>
+                    <systemProperties>
+                        <systemProperty>
+                            <name>dev.http.port</name>
+                            <value>${http.port}</value>
+                        </systemProperty>
+                        <systemProperty>
+                            <name>dev.https.port</name>
+                            <value>${https.port}</value>
+                        </systemProperty>
+                        <systemProperty>
+                            <name>dev.keystore.path</name>
+                            <value>${project.basedir}/certificates/keystore.jks</value>
+                        </systemProperty>
+                        <systemProperty>
+                            <name>dev.keystore.password</name>
+                            <value>${keystore.password}</value>
+                        </systemProperty>
+                    </systemProperties>
+                    <webApp>
+                        <contextPath>/</contextPath>
+                    </webApp>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
+
+    <profiles>
+        <!-- Optional: embedded Tomcat 8.5 via Cargo (same WAR; root context quirks may still apply). -->
+        <profile>
+            <id>tomcat8-cargo</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.cargo</groupId>
+                        <artifactId>cargo-maven3-plugin</artifactId>
+                        <configuration>
+                            <ignoreFailures>false</ignoreFailures>
+                            <container>
+                                <containerId>tomcat8x</containerId>
+                                <type>embedded</type>
+                            </container>
+                            <configuration>
+                                <properties>
+                                    <cargo.servlet.port>${http.port}</cargo.servlet.port>
+                                    <cargo.hostname>0.0.0.0</cargo.hostname>
+                                </properties>
+                            </configuration>
+                            <deployables>
+                                <deployable>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}</artifactId>
+                                    <type>war</type>
+                                </deployable>
+                            </deployables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <!-- HTTPS only applies to Cargo; use -Ptomcat8-cargo,https -->
+        <profile>
+            <id>https</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.cargo</groupId>
+                        <artifactId>cargo-maven3-plugin</artifactId>
+                        <configuration>
+                            <configuration>
+                                <properties>
+                                    <cargo.servlet.port>8443</cargo.servlet.port>
+                                    <cargo.protocol>https</cargo.protocol>
+                                    <cargo.tomcat.connector.clientAuth>false</cargo.tomcat.connector.clientAuth>
+                                    <cargo.tomcat.connector.sslProtocol>TLS</cargo.tomcat.connector.sslProtocol>
+                                    <cargo.tomcat.connector.keystoreFile>${project.basedir}/certificates/keystore.jks</cargo.tomcat.connector.keystoreFile>
+                                    <cargo.tomcat.connector.keystorePass>health</cargo.tomcat.connector.keystorePass>
+                                    <cargo.tomcat.httpSecure>true</cargo.tomcat.httpSecure>
+                                </properties>
+                            </configuration>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

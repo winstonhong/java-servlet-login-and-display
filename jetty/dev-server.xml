@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Jetty//Configure//EN" "http://www.eclipse.org/jetty/configure_9_3.dtd">
+<!-- Dev HTTP + HTTPS for jetty:run. Keystore: certificates/keystore.jks (see certificates/README.md). -->
+<Configure id="Server" class="org.eclipse.jetty.server.Server">
+
+  <Call name="addConnector">
+    <Arg>
+      <New class="org.eclipse.jetty.server.ServerConnector">
+        <Arg name="server"><Ref refid="Server"/></Arg>
+        <Arg name="acceptors" type="int">-1</Arg>
+        <Arg name="selectors" type="int">-1</Arg>
+        <Arg name="factories">
+          <Array type="org.eclipse.jetty.server.ConnectionFactory">
+            <Item>
+              <New class="org.eclipse.jetty.server.HttpConnectionFactory">
+                <Arg>
+                  <New class="org.eclipse.jetty.server.HttpConfiguration"/>
+                </Arg>
+              </New>
+            </Item>
+          </Array>
+        </Arg>
+        <Set name="host">0.0.0.0</Set>
+        <Set name="port"><Property name="dev.http.port" default="8080"/></Set>
+      </New>
+    </Arg>
+  </Call>
+
+  <New id="sslContextFactory" class="org.eclipse.jetty.util.ssl.SslContextFactory$Server">
+    <Set name="KeyStorePath"><Property name="dev.keystore.path" default="certificates/keystore.jks"/></Set>
+    <Set name="KeyStorePassword"><Property name="dev.keystore.password" default="health"/></Set>
+    <Set name="KeyManagerPassword"><Property name="dev.keystore.password" default="health"/></Set>
+    <Set name="EndpointIdentificationAlgorithm"></Set>
+  </New>
+
+  <New id="sslHttpConfig" class="org.eclipse.jetty.server.HttpConfiguration">
+    <Set name="secureScheme">https</Set>
+    <Set name="securePort"><Property name="dev.https.port" default="8443"/></Set>
+    <Call name="addCustomizer">
+      <Arg>
+        <New class="org.eclipse.jetty.server.SecureRequestCustomizer"/>
+      </Arg>
+    </Call>
+  </New>
+
+  <Call name="addConnector">
+    <Arg>
+      <New class="org.eclipse.jetty.server.ServerConnector">
+        <Arg name="server"><Ref refid="Server"/></Arg>
+        <Arg name="acceptors" type="int">-1</Arg>
+        <Arg name="selectors" type="int">-1</Arg>
+        <Arg name="factories">
+          <Array type="org.eclipse.jetty.server.ConnectionFactory">
+            <Item>
+              <New class="org.eclipse.jetty.server.SslConnectionFactory">
+                <Arg name="next">http/1.1</Arg>
+                <Arg name="sslContextFactory"><Ref refid="sslContextFactory"/></Arg>
+              </New>
+            </Item>
+            <Item>
+              <New class="org.eclipse.jetty.server.HttpConnectionFactory">
+                <Arg><Ref refid="sslHttpConfig"/></Arg>
+              </New>
+            </Item>
+          </Array>
+        </Arg>
+        <Set name="host">0.0.0.0</Set>
+        <Set name="port"><Property name="dev.https.port" default="8443"/></Set>
+      </New>
+    </Arg>
+  </Call>
+
+</Configure>

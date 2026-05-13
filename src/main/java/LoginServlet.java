@@ -26,6 +26,9 @@ public class LoginServlet extends HttpServlet{
     public void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        request.setCharacterEncoding("UTF-8");
+        response.setCharacterEncoding("UTF-8");
+
         String n = request.getParameter("name");
         String p = request.getParameter("password");
 
@@ -37,7 +40,9 @@ public class LoginServlet extends HttpServlet{
         	request.getSession().setAttribute("name",n);
 		String originalUrl = request.getRequestURL().toString();
 		String baseUrl = originalUrl.substring(0, originalUrl.length() - request.getRequestURI().length()) + request.getContextPath();
-		response.sendRedirect(baseUrl + "/homepage.do");
+		String target = baseUrl + "/homepage.do";
+		// Preserve session when Set-Cookie is not stored (e.g. some HTTP / mixed-port setups).
+		response.sendRedirect(response.encodeRedirectURL(target));
         }
         else{
             request.setAttribute("errorMessage", "Invalid Credentials!");

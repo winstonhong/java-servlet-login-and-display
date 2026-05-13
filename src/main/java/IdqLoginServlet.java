@@ -91,8 +91,9 @@ public class IdqLoginServlet extends HttpServlet{
 				// Establish HttpSession httpSession with user ID
 				httpSession.setAttribute("name", username);
 				String originalUrl = request.getRequestURL().toString();
-				String baseUrl = originalUrl.substring(0, originalUrl.length() - request.getRequestURI().length()) + request.getContextPath();				
-				response.sendRedirect(baseUrl + "/homepage.do");
+				String baseUrl = originalUrl.substring(0, originalUrl.length() - request.getRequestURI().length()) + request.getContextPath();
+				String target = baseUrl + "/homepage.do";
+				response.sendRedirect(response.encodeRedirectURL(target));
 			}
 			
 		} catch(OAuthSystemException | OAuthProblemException | JSONException e) {

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cargo's TomcatWAR.getContext() reads this path before the WAR filename; "/" normalizes to the real root context. -->
+<Context path="/" />
